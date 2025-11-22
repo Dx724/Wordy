@@ -639,7 +639,15 @@ function checkWord() {
             c.classList.add('used'); // Mark as used
         });
 
-        showMessage(`Found: ${word}!`);
+        // Check if we have a definition for this word
+        let message;
+        if (typeof WORD_DEFINITIONS !== 'undefined' && WORD_DEFINITIONS[word.toLowerCase()]) {
+            message = `${word}: ${WORD_DEFINITIONS[word.toLowerCase()]}`;
+        } else {
+            message = `Found: ${word}!`;
+        }
+
+        showMessage(message);
         expandWorld();
 
         // Save game state after finding a word
