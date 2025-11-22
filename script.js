@@ -398,6 +398,9 @@ function handleInputStart(e) {
     } else {
         isPanning = true;
 
+        // Clear any existing selection when starting to pan
+        clearSelection();
+
         // Default to single touch/mouse
         let clientX = e.clientX || (e.touches && e.touches[0].clientX);
         let clientY = e.clientY || (e.touches && e.touches[0].clientY);
