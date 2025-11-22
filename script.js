@@ -255,12 +255,18 @@ function generateGridData(cx, cy) {
     const grid = new Array(GRID_SIZE * GRID_SIZE).fill(null);
     const wordsToPlace = 3 + Math.floor(Math.random() * 3);
 
-    for (let i = 0; i < wordsToPlace; i++) {
+    let placedCount = 0;
+    console.log(`Placing ${wordsToPlace} words`);
+    for (let i = 0; i < wordsToPlace || placedCount == 0; i++) {
         if (placementWords.length > 0) {
             const word = placementWords[Math.floor(Math.random() * placementWords.length)];
-            placeWord(grid, word);
+            if (placeWord(grid, word)) {
+                placedCount++;
+                //console.log(`Placed ${word}`);
+            }
         }
     }
+    //console.log(`Placed ${placedCount} words`);
 
     // Seed the grid with 2-letter prefixes near edges for better cross-chunk placement
     seedPrefixesNearEdges(grid);
@@ -298,6 +304,7 @@ function placeWord(grid, word) {
         }
         attempts++;
     }
+    return placed;
 }
 
 function canPlace(grid, word, startX, startY, dir) {
