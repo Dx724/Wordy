@@ -12,6 +12,7 @@ const messageArea = document.getElementById('message-area');
 const dragLine = document.getElementById('drag-line');
 
 let placementWords = [];
+let obscureWords = []; // Words from the bigger dictionary with length >= 6
 let prefixMap = {}; // Key: 2-letter prefix, Value: array of words with that prefix
 let chunks = {}; // Key: "gx,gy", Value: Cell Element
 let chunkElements = {}; // Key: "cx,cy", Value: Chunk Element
@@ -91,6 +92,14 @@ function processDictionaries() {
     if (typeof VALIDATION_DICT === 'undefined') {
         console.error("Validation dictionary not loaded!");
         window.VALIDATION_DICT = new Set(placementWords);
+    } else {
+        // Populate obscureWords
+        VALIDATION_DICT.forEach(word => {
+            if (word.length >= 6) {
+                obscureWords.push(word);
+            }
+        });
+        console.log(`Loaded ${obscureWords.length} obscure words.`);
     }
 }
 
@@ -273,6 +282,18 @@ function generateGridData(cx, cy, sx = null, sy = null, dir = null) {
         }
     }
     //console.log(`Placed ${placedCount} words`);
+
+    // Try to place one obscure word from the bigger dictionary
+    if (obscureWords.length > 0) {
+        // Try 10 times to find a word that fits
+        for (let i = 0; i < 10; i++) {
+            const obscureWord = obscureWords[Math.floor(Math.random() * obscureWords.length)];
+            if (placeWord(grid, obscureWord)) {
+                //console.log(`Placed obscure word: ${obscureWord}`);
+                break;
+            }
+        }
+    }
 
     // Seed the grid with 2-letter prefixes near edges for better cross-chunk placement
     seedPrefixesNearEdges(grid);
