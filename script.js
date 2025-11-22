@@ -7,7 +7,7 @@ const CHUNK_HEIGHT_PX = CHUNK_WIDTH_PX;
 const gameContainer = document.getElementById('game-container');
 const world = document.getElementById('world');
 const wordCountEl = document.getElementById('word-count');
-const letterCountEl = document.getElementById('letter-count');
+const avgLenEl = document.getElementById('avg-len');
 const messageArea = document.getElementById('message-area');
 const dragLine = document.getElementById('drag-line');
 
@@ -150,7 +150,7 @@ function loadGameState() {
         foundWordsCount = state.score.foundWordsCount || 0;
         foundLettersCount = state.score.foundLettersCount || 0;
         wordCountEl.textContent = foundWordsCount;
-        letterCountEl.textContent = foundLettersCount;
+        avgLenEl.textContent = foundWordsCount > 0 ? (foundLettersCount / foundWordsCount).toFixed(1) : 0;
 
         // Restore most recent chunk
         mostRecentChunk = state.mostRecentChunk || { cx: 0, cy: 0 };
@@ -495,7 +495,7 @@ function checkWord() {
         foundWordsCount++;
         foundLettersCount += word.length;
         wordCountEl.textContent = foundWordsCount;
-        letterCountEl.textContent = foundLettersCount;
+        avgLenEl.textContent = (foundLettersCount / foundWordsCount).toFixed(1);
 
         currentSelection.forEach(c => {
             c.classList.remove('selected');
