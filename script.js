@@ -15,6 +15,7 @@ let placementWords = [];
 let chunks = {}; // Key: "gx,gy", Value: Cell Element
 let chunkElements = {}; // Key: "cx,cy", Value: Chunk Element
 let occupiedChunks = new Set(); // Key: "cx,cy"
+let mostRecentChunk = { cx: 0, cy: 0 }; // Track most recent chunk for camera positioning
 
 let isPanning = false;
 let isSelecting = false;
@@ -31,13 +32,18 @@ init();
 function init() {
     processDictionaries();
 
-    // Center the world initially
-    panX = -CHUNK_WIDTH_PX / 2;
-    panY = -CHUNK_HEIGHT_PX / 2;
-    updateWorldTransform();
+    // Try to load saved game state
+    const loaded = loadGameState();
 
-    // Create initial chunk at 0,0
-    createChunk(0, 0);
+    if (!loaded) {
+        // No save found, create initial chunk at 0,0
+        createChunk(0, 0);
+
+        // Center the world initially
+        panX = -CHUNK_WIDTH_PX / 2;
+        panY = -CHUNK_HEIGHT_PX / 2;
+        updateWorldTransform();
+    }
 
     // Event Listeners
     gameContainer.addEventListener('mousedown', handleInputStart);
@@ -67,6 +73,123 @@ function processDictionaries() {
     if (typeof VALIDATION_DICT === 'undefined') {
         console.error("Validation dictionary not loaded!");
         window.VALIDATION_DICT = new Set(placementWords);
+    }
+}
+
+// Save game state to localStorage
+function saveGameState() {
+    try {
+        const state = {
+            version: 1,
+            savedAt: Date.now(),
+            score: {
+                foundWordsCount,
+                foundLettersCount
+            },
+            mostRecentChunk,
+            chunks: []
+        };
+
+        // Serialize all chunks
+        occupiedChunks.forEach(chunkKey => {
+            const [cx, cy] = chunkKey.split(',').map(Number);
+            const chunkData = {
+                cx,
+                cy,
+                cells: []
+            };
+
+            // Serialize all cells in this chunk
+            for (let ly = 0; ly < GRID_SIZE; ly++) {
+                for (let lx = 0; lx < GRID_SIZE; lx++) {
+                    const gx = cx * GRID_SIZE + lx;
+                    const gy = cy * GRID_SIZE + ly;
+                    const cell = chunks[`${gx},${gy}`];
+
+                    if (cell) {
+                        chunkData.cells.push({
+                            letter: cell.textContent,
+                            found: cell.classList.contains('found'),
+                            used: cell.classList.contains('used')
+                        });
+                    }
+                }
+            }
+
+            state.chunks.push(chunkData);
+        });
+
+        localStorage.setItem('wordSearchGameState', JSON.stringify(state));
+        console.log('Game state saved');
+    } catch (error) {
+        console.error('Failed to save game state:', error);
+    }
+}
+
+// Load game state from localStorage
+function loadGameState() {
+    try {
+        const saved = localStorage.getItem('wordSearchGameState');
+        if (!saved) return false;
+
+        const state = JSON.parse(saved);
+
+        // Restore score
+        foundWordsCount = state.score.foundWordsCount || 0;
+        foundLettersCount = state.score.foundLettersCount || 0;
+        wordCountEl.textContent = foundWordsCount;
+        letterCountEl.textContent = foundLettersCount;
+
+        // Restore most recent chunk
+        mostRecentChunk = state.mostRecentChunk || { cx: 0, cy: 0 };
+
+        // Restore all chunks
+        state.chunks.forEach(chunkData => {
+            const { cx, cy, cells } = chunkData;
+
+            // Create chunk element
+            const chunkEl = document.createElement('div');
+            chunkEl.className = 'grid-chunk';
+            chunkEl.style.left = `${cx * CHUNK_WIDTH_PX}px`;
+            chunkEl.style.top = `${cy * CHUNK_HEIGHT_PX}px`;
+            chunkEl.dataset.cx = cx;
+            chunkEl.dataset.cy = cy;
+
+            // Create cells with saved data
+            cells.forEach((cellData, index) => {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.textContent = cellData.letter;
+
+                const localX = index % GRID_SIZE;
+                const localY = Math.floor(index / GRID_SIZE);
+                const gx = cx * GRID_SIZE + localX;
+                const gy = cy * GRID_SIZE + localY;
+
+                cell.dataset.gx = gx;
+                cell.dataset.gy = gy;
+
+                // Restore cell state
+                if (cellData.found) cell.classList.add('found');
+                if (cellData.used) cell.classList.add('used');
+
+                chunkEl.appendChild(cell);
+                chunks[`${gx},${gy}`] = cell;
+            });
+
+            world.appendChild(chunkEl);
+            chunkElements[`${cx},${cy}`] = chunkEl;
+            occupiedChunks.add(`${cx},${cy}`);
+        });
+
+        // Center camera on most recent chunk
+        panToChunk(mostRecentChunk.cx, mostRecentChunk.cy);
+
+        console.log('Game state loaded');
+        return true;
+    } catch (error) {
+        console.error('Failed to load game state:', error);
+        return false;
     }
 }
 
@@ -103,6 +226,9 @@ function createChunk(cx, cy) {
     world.appendChild(chunkEl);
     chunkElements[key] = chunkEl;
     occupiedChunks.add(key);
+
+    // Track most recent chunk
+    mostRecentChunk = { cx, cy };
 
     setTimeout(() => chunkEl.classList.remove('newly-added'), 600);
 }
@@ -288,6 +414,9 @@ function checkWord() {
 
         showMessage(`Found: ${word}!`);
         expandWorld();
+
+        // Save game state after finding a word
+        saveGameState();
     }
 }
 
