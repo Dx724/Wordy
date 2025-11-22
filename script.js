@@ -395,16 +395,25 @@ function handleInputStart(e) {
         e.preventDefault();
     } else {
         isPanning = true;
-        startPanX = (e.clientX || (e.touches && e.touches[0].clientX)) - panX;
-        startPanY = (e.clientY || (e.touches && e.touches[0].clientY)) - panY;
 
-        // For pinch-to-zoom: track initial distance between touches
+        // Default to single touch/mouse
+        let clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        let clientY = e.clientY || (e.touches && e.touches[0].clientY);
+
+        // For pinch-to-zoom: track initial distance and center
         if (e.touches && e.touches.length === 2) {
             const dx = e.touches[0].clientX - e.touches[1].clientX;
             const dy = e.touches[0].clientY - e.touches[1].clientY;
             initialPinchDistance = Math.sqrt(dx * dx + dy * dy);
             startScale = scale;
+
+            // Use center of pinch for panning
+            clientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            clientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
         }
+
+        startPanX = clientX - panX;
+        startPanY = clientY - panY;
 
         gameContainer.style.cursor = 'grabbing';
     }
@@ -421,17 +430,29 @@ function handleInputMove(e) {
             const dy = e.touches[0].clientY - e.touches[1].clientY;
             const currentDistance = Math.sqrt(dx * dx + dy * dy);
 
+            // Calculate center point between the two touches
+            const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+            // 1. Apply Panning (move world based on center movement)
+            panX = centerX - startPanX;
+            panY = centerY - startPanY;
+
+            // 2. Apply Zoom (if distance changed)
             if (initialPinchDistance > 0) {
                 const zoomFactor = currentDistance / initialPinchDistance;
                 const newScale = startScale * zoomFactor;
 
-                // Get center point between the two touches
-                const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-                const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-
-                // Zoom around the center point
+                // Apply zoom centered on the pinch midpoint
                 applyZoom(newScale, centerX, centerY);
+            } else {
+                updateWorldTransform();
             }
+
+            // 3. Re-sync startPanX/Y
+            startPanX = centerX - panX;
+            startPanY = centerY - panY;
+
             e.preventDefault();
         } else {
             // Regular panning
