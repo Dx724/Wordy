@@ -25,6 +25,8 @@ let panX = 0, panY = 0;
 let scale = 1.0; // Zoom level
 let initialPinchDistance = 0; // For pinch-to-zoom
 let startScale = 1.0; // Scale at start of pinch
+let lastPinchCenterX = 0; // Track pinch center for delta calculation
+let lastPinchCenterY = 0;
 let selectionStartCell = null;
 let currentSelection = [];
 let foundWordsCount = 0;
@@ -410,6 +412,10 @@ function handleInputStart(e) {
             // Use center of pinch for panning
             clientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
             clientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+            // Track initial center position
+            lastPinchCenterX = clientX;
+            lastPinchCenterY = clientY;
         }
 
         startPanX = clientX - panX;
@@ -434,24 +440,26 @@ function handleInputMove(e) {
             const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
             const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
 
-            // 1. Apply Panning (move world based on center movement)
-            panX = centerX - startPanX;
-            panY = centerY - startPanY;
+            // Calculate how much the center moved since last frame
+            const deltaCenterX = centerX - lastPinchCenterX;
+            const deltaCenterY = centerY - lastPinchCenterY;
 
-            // 2. Apply Zoom (if distance changed)
+            // Apply panning based on center movement
+            panX += deltaCenterX;
+            panY += deltaCenterY;
+
+            // Apply zoom around current center position
             if (initialPinchDistance > 0) {
                 const zoomFactor = currentDistance / initialPinchDistance;
                 const newScale = startScale * zoomFactor;
 
-                // Apply zoom centered on the pinch midpoint
+                // applyZoom will keep the world point under centerX/centerY anchored
                 applyZoom(newScale, centerX, centerY);
-            } else {
-                updateWorldTransform();
             }
 
-            // 3. Re-sync startPanX/Y
-            startPanX = centerX - panX;
-            startPanY = centerY - panY;
+            // Remember current center for next frame
+            lastPinchCenterX = centerX;
+            lastPinchCenterY = centerY;
 
             e.preventDefault();
         } else {
