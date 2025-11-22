@@ -22,6 +22,9 @@ let isPanning = false;
 let isSelecting = false;
 let startPanX, startPanY;
 let panX = 0, panY = 0;
+let scale = 1.0; // Zoom level
+let initialPinchDistance = 0; // For pinch-to-zoom
+let startScale = 1.0; // Scale at start of pinch
 let selectionStartCell = null;
 let currentSelection = [];
 let foundWordsCount = 0;
@@ -50,6 +53,7 @@ function init() {
     gameContainer.addEventListener('mousedown', handleInputStart);
     window.addEventListener('mousemove', handleInputMove);
     window.addEventListener('mouseup', handleInputEnd);
+    gameContainer.addEventListener('wheel', handleWheel, { passive: false });
 
     // Touch support - pass full event to preserve touches array for multitouch detection
     gameContainer.addEventListener('touchstart', handleInputStart);
@@ -393,6 +397,15 @@ function handleInputStart(e) {
         isPanning = true;
         startPanX = (e.clientX || (e.touches && e.touches[0].clientX)) - panX;
         startPanY = (e.clientY || (e.touches && e.touches[0].clientY)) - panY;
+
+        // For pinch-to-zoom: track initial distance between touches
+        if (e.touches && e.touches.length === 2) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            initialPinchDistance = Math.sqrt(dx * dx + dy * dy);
+            startScale = scale;
+        }
+
         gameContainer.style.cursor = 'grabbing';
     }
 }
@@ -402,11 +415,32 @@ function handleInputMove(e) {
     const clientY = e.clientY || (e.touches && e.touches[0].clientY);
 
     if (isPanning) {
-        panX = clientX - startPanX;
-        panY = clientY - startPanY;
-        updateWorldTransform();
-        // Prevent scrolling on touch devices during panning
-        if (e.touches) e.preventDefault();
+        // Handle pinch-to-zoom with 2 touches
+        if (e.touches && e.touches.length === 2) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const currentDistance = Math.sqrt(dx * dx + dy * dy);
+
+            if (initialPinchDistance > 0) {
+                const zoomFactor = currentDistance / initialPinchDistance;
+                const newScale = startScale * zoomFactor;
+
+                // Get center point between the two touches
+                const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+                // Zoom around the center point
+                applyZoom(newScale, centerX, centerY);
+            }
+            e.preventDefault();
+        } else {
+            // Regular panning
+            panX = clientX - startPanX;
+            panY = clientY - startPanY;
+            updateWorldTransform();
+            // Prevent scrolling on touch devices during panning
+            if (e.touches) e.preventDefault();
+        }
     } else if (isSelecting) {
         const target = document.elementFromPoint(clientX, clientY);
         // Update selection if over a valid cell, otherwise just update drag line to mouse
@@ -425,11 +459,47 @@ function handleInputEnd() {
     }
     isPanning = false;
     isSelecting = false;
+    initialPinchDistance = 0; // Reset pinch distance
     gameContainer.style.cursor = 'grab';
 }
 
+function handleWheel(e) {
+    e.preventDefault();
+
+    // Determine zoom direction
+    const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
+    const newScale = scale * zoomDelta;
+
+    // Zoom around mouse position
+    applyZoom(newScale, e.clientX, e.clientY);
+}
+
+function applyZoom(newScale, centerX, centerY) {
+    // Clamp scale between 0.25x and 4x
+    newScale = Math.max(0.25, Math.min(4, newScale));
+
+    // Get container center in client coordinates
+    const containerRect = gameContainer.getBoundingClientRect();
+    const ox = containerRect.left + containerRect.width / 2;
+    const oy = containerRect.top + containerRect.height / 2;
+
+    // Calculate the world position under the cursor before zoom
+    // panX/panY are translations relative to the center (ox, oy)
+    const worldX = (centerX - ox - panX) / scale;
+    const worldY = (centerY - oy - panY) / scale;
+
+    // Update scale
+    scale = newScale;
+
+    // Adjust pan to keep the same world position under the cursor
+    panX = centerX - ox - worldX * scale;
+    panY = centerY - oy - worldY * scale;
+
+    updateWorldTransform();
+}
+
 function updateWorldTransform() {
-    world.style.transform = `translate(${panX}px, ${panY}px)`;
+    world.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
 }
 
 function updateSelection(endCell, mouseX, mouseY) {
@@ -672,8 +742,9 @@ function panToChunk(cx, cy) {
     const chunkWorldX = (cx * CHUNK_WIDTH_PX) + (CHUNK_WIDTH_PX / 2);
     const chunkWorldY = (cy * CHUNK_HEIGHT_PX) + (CHUNK_HEIGHT_PX / 2);
 
-    const targetPanX = -chunkWorldX;
-    const targetPanY = -chunkWorldY;
+    // Target pan must account for scale to keep the chunk centered
+    const targetPanX = -chunkWorldX * scale;
+    const targetPanY = -chunkWorldY * scale;
 
     const startX = panX;
     const startY = panY;
