@@ -211,7 +211,7 @@ function loadGameState() {
     }
 }
 
-function createChunk(cx, cy) {
+function createChunk(cx, cy, sx = null, sy = null, dir = null) {
     const key = `${cx},${cy}`;
     if (occupiedChunks.has(key)) return;
 
@@ -222,7 +222,7 @@ function createChunk(cx, cy) {
     chunkEl.dataset.cx = cx;
     chunkEl.dataset.cy = cy;
 
-    const gridData = generateGridData(cx, cy);
+    const gridData = generateGridData(cx, cy, sx, sy, dir);
 
     gridData.forEach((letter, index) => {
         const cell = document.createElement('div');
@@ -251,8 +251,14 @@ function createChunk(cx, cy) {
     setTimeout(() => chunkEl.classList.remove('newly-added'), 600);
 }
 
-function generateGridData(cx, cy) {
+function generateGridData(cx, cy, sx = null, sy = null, dir = null) {
     const grid = new Array(GRID_SIZE * GRID_SIZE).fill(null);
+
+    // Try cross-chunk placement first if source info is provided
+    if (sx !== null && sy !== null && dir !== null) {
+        placeCrossChunkWordInGrid(grid, cx, cy, sx, sy, dir);
+    }
+
     const wordsToPlace = 3 + Math.floor(Math.random() * 3);
 
     let placedCount = 0;
@@ -648,13 +654,7 @@ function expandWorld() {
 
     if (available.length > 0) {
         const target = available[Math.floor(Math.random() * available.length)];
-        createChunk(target.x, target.y);
-
-        // Try every time because this is pretty rare
-        // In the future we can try to improve this by increasing the set of placeable words
-        // Or, we can make the randomly-generated letter distribution more conducive
-        // Or, we can pre-plan!
-        attemptCrossChunkPlacement(sx, sy, target.x, target.y, target.dir);
+        createChunk(target.x, target.y, sx, sy, target.dir);
 
         panToChunk(target.x, target.y);
     } else {
@@ -662,7 +662,7 @@ function expandWorld() {
     }
 }
 
-function attemptCrossChunkPlacement(sx, sy, nx, ny, dir) {
+function placeCrossChunkWordInGrid(grid, cx, cy, sx, sy, dir) {
     // Determine the edge cells in the old chunk adjacent to the new chunk
     const edgePositions = [];
 
@@ -739,7 +739,7 @@ function attemptCrossChunkPlacement(sx, sy, nx, ny, dir) {
 
             // Try each candidate word
             for (const word of shuffledWords) {
-                if (tryPlaceCrossChunkWord(word, startGx, startGy, direction.dx, direction.dy)) {
+                if (tryPlaceCrossChunkWordInGrid(grid, cx, cy, sx, sy, word, startGx, startGy, direction.dx, direction.dy)) {
                     //console.log(`Cross-chunk word placed: ${word} at (${startGx},${startGy}) dir(${direction.dx},${direction.dy})`);
                     return true;
                 }
@@ -750,30 +750,47 @@ function attemptCrossChunkPlacement(sx, sy, nx, ny, dir) {
     return false;
 }
 
-function tryPlaceCrossChunkWord(word, startGx, startGy, stepX, stepY) {
-    // Check if the word can be placed
+function tryPlaceCrossChunkWordInGrid(grid, cx, cy, sx, sy, word, startGx, startGy, stepX, stepY) {
+    // 1. Validate
     for (let i = 0; i < word.length; i++) {
         const gx = startGx + i * stepX;
         const gy = startGy + i * stepY;
-        const key = `${gx},${gy}`;
-        const cell = chunks[key];
 
-        if (!cell) return false; // Cell doesn't exist
-        if (cell.classList.contains('used')) return false; // Cell already used
+        // Determine which chunk this cell belongs to
+        const cellCx = Math.floor(gx / GRID_SIZE);
+        const cellCy = Math.floor(gy / GRID_SIZE);
 
-        const existing = cell.textContent;
-        if (existing && existing !== word[i]) return false; // Conflict
+        if (cellCx === sx && cellCy === sy) {
+            // In Source Chunk - check existing
+            const cell = chunks[`${gx},${gy}`];
+            if (!cell || cell.textContent !== word[i]) return false;
+        } else if (cellCx === cx && cellCy === cy) {
+            // In Target Chunk - check grid
+            // Convert global to local
+            const lx = gx - cx * GRID_SIZE;
+            const ly = gy - cy * GRID_SIZE;
+            const idx = ly * GRID_SIZE + lx;
+            if (grid[idx] !== null && grid[idx] !== word[i]) return false;
+        } else {
+            // In some other chunk (or out of bounds?)
+            return false;
+        }
     }
 
-    // Place the word
+    // 2. Place (only in grid)
     for (let i = 0; i < word.length; i++) {
         const gx = startGx + i * stepX;
         const gy = startGy + i * stepY;
-        const key = `${gx},${gy}`;
-        const cell = chunks[key];
-        cell.textContent = word[i];
-    }
+        const cellCx = Math.floor(gx / GRID_SIZE);
+        const cellCy = Math.floor(gy / GRID_SIZE);
 
+        if (cellCx === cx && cellCy === cy) {
+            const lx = gx - cx * GRID_SIZE;
+            const ly = gy - cy * GRID_SIZE;
+            const idx = ly * GRID_SIZE + lx;
+            grid[idx] = word[i];
+        }
+    }
     return true;
 }
 
