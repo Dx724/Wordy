@@ -256,6 +256,9 @@ function generateGridData(cx, cy) {
         }
     }
 
+    // Seed the grid with 2-letter prefixes near edges for better cross-chunk placement
+    seedPrefixesNearEdges(grid);
+
     for (let i = 0; i < grid.length; i++) {
         if (!grid[i]) {
             grid[i] = String.fromCharCode(65 + Math.floor(Math.random() * 26));
@@ -300,6 +303,80 @@ function canPlace(grid, word, startX, startY, dir) {
         if (grid[idx] !== null && grid[idx] !== word[i]) return false;
     }
     return true;
+}
+
+function seedPrefixesNearEdges(grid) {
+    // Get all available prefixes
+    const allPrefixes = Object.keys(prefixMap);
+    if (allPrefixes.length === 0) return;
+
+    // Try to place 2 random prefixes near edges
+    const numSeeds = 2;
+
+    for (let seedAttempt = 0; seedAttempt < numSeeds; seedAttempt++) {
+        // Pick a random prefix
+        const prefix = allPrefixes[Math.floor(Math.random() * allPrefixes.length)];
+
+        // Define edge positions with outward-pointing directions
+        // Both letters are inside the chunk, but oriented so the word can extend out
+        const edgePositions = [];
+
+        // Top edge (y=0 or y=1): place prefixes pointing UP (so 3rd letter would be outside)
+        for (let x = 1; x < GRID_SIZE - 1; x++) {
+            edgePositions.push({ x, y: 1, directions: [{ dx: 0, dy: -1 }, { dx: 1, dy: -1 }, { dx: -1, dy: -1 }] });
+        }
+
+        // Bottom edge (y=GRID_SIZE-1 or y=GRID_SIZE-2): place prefixes pointing DOWN
+        for (let x = 1; x < GRID_SIZE - 1; x++) {
+            edgePositions.push({ x, y: GRID_SIZE - 2, directions: [{ dx: 0, dy: 1 }, { dx: 1, dy: 1 }, { dx: -1, dy: 1 }] });
+        }
+
+        // Left edge (x=0 or x=1): place prefixes pointing LEFT
+        for (let y = 1; y < GRID_SIZE - 1; y++) {
+            edgePositions.push({ x: 1, y, directions: [{ dx: -1, dy: 0 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 }] });
+        }
+
+        // Right edge (x=GRID_SIZE-1 or x=GRID_SIZE-2): place prefixes pointing RIGHT
+        for (let y = 1; y < GRID_SIZE - 1; y++) {
+            edgePositions.push({ x: GRID_SIZE - 2, y, directions: [{ dx: 1, dy: 0 }, { dx: 1, dy: 1 }, { dx: 1, dy: -1 }] });
+        }
+
+        // Shuffle edge positions
+        edgePositions.sort(() => Math.random() - 0.5);
+
+        var done = false;
+
+        // Try to place the prefix
+        for (const pos of edgePositions) {
+            // Shuffle directions for this position
+            const shuffledDirs = [...pos.directions].sort(() => Math.random() - 0.5);
+
+            for (const dir of shuffledDirs) {
+                const x1 = pos.x;
+                const y1 = pos.y;
+                const x2 = pos.x + dir.dx;
+                const y2 = pos.y + dir.dy;
+
+                // Both positions must be within the grid
+                if (x2 < 0 || x2 >= GRID_SIZE || y2 < 0 || y2 >= GRID_SIZE) continue;
+
+                const idx1 = y1 * GRID_SIZE + x1;
+                const idx2 = y2 * GRID_SIZE + x2;
+
+                // Check if both cells are empty
+                if (grid[idx1] === null && grid[idx2] === null) {
+                    // Place the prefix
+                    grid[idx1] = prefix[0];
+                    grid[idx2] = prefix[1];
+                    done = true;
+                    //console.log("Placed prefix: " + prefix + " at " + x1 + "," + y1 + " and " + x2 + "," + y2);
+                    break;
+                }
+            }
+
+            if (done) break;
+        }
+    }
 }
 
 // Input Handling
