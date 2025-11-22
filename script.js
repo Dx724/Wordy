@@ -649,6 +649,11 @@ function checkWord() {
             message = `Found: ${word}!`;
         }
 
+        // Truncate to 250 characters if needed
+        if (message.length > 250) {
+            message = message.substring(0, 250) + '...';
+        }
+
         showMessage(message);
         expandWorld();
 
