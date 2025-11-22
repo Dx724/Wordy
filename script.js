@@ -12,6 +12,7 @@ const messageArea = document.getElementById('message-area');
 const dragLine = document.getElementById('drag-line');
 
 let placementWords = [];
+let prefixMap = {}; // Key: 2-letter prefix, Value: array of words with that prefix
 let chunks = {}; // Key: "gx,gy", Value: Cell Element
 let chunkElements = {}; // Key: "cx,cy", Value: Chunk Element
 let occupiedChunks = new Set(); // Key: "cx,cy"
@@ -68,6 +69,17 @@ function processDictionaries() {
         console.error("Placement dictionary not loaded!");
         ["APPLE", "BRAIN", "CHAIR", "DANCE", "EAGLE"].forEach(w => placementWords.push(w));
     }
+
+    // Build prefix map for efficient cross-chunk word placement
+    placementWords.forEach(word => {
+        if (word.length >= 4) {
+            const prefix = word.substring(0, 2);
+            if (!prefixMap[prefix]) {
+                prefixMap[prefix] = [];
+            }
+            prefixMap[prefix].push(word);
+        }
+    });
 
     // Validation Dictionary is already a Set in VALIDATION_DICT (from all_words.js)
     if (typeof VALIDATION_DICT === 'undefined') {
@@ -450,14 +462,11 @@ function expandWorld() {
         const target = available[Math.floor(Math.random() * available.length)];
         createChunk(target.x, target.y);
 
-        // 30% chance to place a cross-chunk word, try up to 250 times (we should probably do a prefix lookup instead)
-        if (Math.random() < 0.3) {
-            for (let attempt = 0; attempt < 250; attempt++) {
-                if (attemptCrossChunkPlacement(sx, sy, target.x, target.y, target.dir)) {
-                    break; // Success, stop trying
-                }
-            }
-        }
+        // Try every time because this is pretty rare
+        // In the future we can try to improve this by increasing the set of placeable words
+        // Or, we can make the randomly-generated letter distribution more conducive
+        // Or, we can pre-plan!
+        attemptCrossChunkPlacement(sx, sy, target.x, target.y, target.dir);
 
         panToChunk(target.x, target.y);
     } else {
@@ -466,41 +475,95 @@ function expandWorld() {
 }
 
 function attemptCrossChunkPlacement(sx, sy, nx, ny, dir) {
-    // Pick a random word
-    if (placementWords.length === 0) return false;
-    const word = placementWords[Math.floor(Math.random() * placementWords.length)];
+    // Determine the edge cells in the old chunk adjacent to the new chunk
+    const edgePositions = [];
 
-    // Determine placement direction and start position
-    // We want at least 2 letters in the new chunk
-    const minInNew = 2;
-    const maxStart = word.length - minInNew;
-
-    let startGx, startGy;
-    let stepX = dir.dx;
-    let stepY = dir.dy;
-
-    // Calculate starting position based on direction
     if (dir.dx === 1) { // New chunk to the right
-        const offset = Math.floor(Math.random() * maxStart);
-        startGx = sx * GRID_SIZE + GRID_SIZE - offset - 1;
-        startGy = sy * GRID_SIZE + Math.floor(Math.random() * GRID_SIZE);
+        for (let ly = 0; ly < GRID_SIZE; ly++) {
+            edgePositions.push({
+                gx: sx * GRID_SIZE + GRID_SIZE - 1,
+                gy: sy * GRID_SIZE + ly,
+                primaryDir: { dx: 1, dy: 0 }  // Words must go right
+            });
+        }
     } else if (dir.dx === -1) { // New chunk to the left
-        const offset = Math.floor(Math.random() * maxStart);
-        startGx = sx * GRID_SIZE + offset;
-        startGy = sy * GRID_SIZE + Math.floor(Math.random() * GRID_SIZE);
+        for (let ly = 0; ly < GRID_SIZE; ly++) {
+            edgePositions.push({
+                gx: sx * GRID_SIZE,
+                gy: sy * GRID_SIZE + ly,
+                primaryDir: { dx: -1, dy: 0 }  // Words must go left
+            });
+        }
     } else if (dir.dy === 1) { // New chunk below
-        const offset = Math.floor(Math.random() * maxStart);
-        startGx = sx * GRID_SIZE + Math.floor(Math.random() * GRID_SIZE);
-        startGy = sy * GRID_SIZE + GRID_SIZE - offset - 1;
+        for (let lx = 0; lx < GRID_SIZE; lx++) {
+            edgePositions.push({
+                gx: sx * GRID_SIZE + lx,
+                gy: sy * GRID_SIZE + GRID_SIZE - 1,
+                primaryDir: { dx: 0, dy: 1 }  // Words must go down
+            });
+        }
     } else if (dir.dy === -1) { // New chunk above
-        const offset = Math.floor(Math.random() * maxStart);
-        startGx = sx * GRID_SIZE + Math.floor(Math.random() * GRID_SIZE);
-        startGy = sy * GRID_SIZE + offset;
-    } else {
-        return false;
+        for (let lx = 0; lx < GRID_SIZE; lx++) {
+            edgePositions.push({
+                gx: sx * GRID_SIZE + lx,
+                gy: sy * GRID_SIZE,
+                primaryDir: { dx: 0, dy: -1 }  // Words must go up
+            });
+        }
     }
 
-    // Try to place the word, checking for conflicts and used letters
+    // Shuffle edge positions for variety
+    edgePositions.sort(() => Math.random() - 0.5);
+
+    // Try each edge position
+    for (const edgePos of edgePositions) {
+        // Try the primary direction and diagonals that cross into the new chunk
+        const tryDirections = [edgePos.primaryDir];
+
+        // Add diagonal directions if they make sense
+        if (Math.abs(edgePos.primaryDir.dx) === 1) {
+            tryDirections.push({ dx: edgePos.primaryDir.dx, dy: 1 });
+            tryDirections.push({ dx: edgePos.primaryDir.dx, dy: -1 });
+        } else if (Math.abs(edgePos.primaryDir.dy) === 1) {
+            tryDirections.push({ dx: 1, dy: edgePos.primaryDir.dy });
+            tryDirections.push({ dx: -1, dy: edgePos.primaryDir.dy });
+        }
+
+        for (const direction of tryDirections) {
+            // Try placing words starting 1 cell before the edge (so 2 letters in old chunk)
+            const startGx = edgePos.gx - direction.dx;
+            const startGy = edgePos.gy - direction.dy;
+
+            // Read the 2-letter prefix from the old chunk
+            const cell1 = chunks[`${startGx},${startGy}`];
+            const cell2 = chunks[`${edgePos.gx},${edgePos.gy}`];
+
+            if (!cell1 || !cell2) continue;
+            if (cell1.classList.contains('used') || cell2.classList.contains('used')) continue;
+
+            const prefix = cell1.textContent + cell2.textContent;
+            const candidateWords = prefixMap[prefix];
+
+            if (!candidateWords || candidateWords.length === 0) continue;
+
+            // Shuffle candidates for variety
+            const shuffledWords = [...candidateWords].sort(() => Math.random() - 0.5);
+
+            // Try each candidate word
+            for (const word of shuffledWords) {
+                if (tryPlaceCrossChunkWord(word, startGx, startGy, direction.dx, direction.dy)) {
+                    //console.log(`Cross-chunk word placed: ${word} at (${startGx},${startGy}) dir(${direction.dx},${direction.dy})`);
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+function tryPlaceCrossChunkWord(word, startGx, startGy, stepX, stepY) {
+    // Check if the word can be placed
     for (let i = 0; i < word.length; i++) {
         const gx = startGx + i * stepX;
         const gy = startGy + i * stepY;
@@ -523,7 +586,6 @@ function attemptCrossChunkPlacement(sx, sy, nx, ny, dir) {
         cell.textContent = word[i];
     }
 
-    console.log(`Cross-chunk word placed: ${word}`);
     return true;
 }
 
