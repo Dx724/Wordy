@@ -271,7 +271,7 @@ function generateGridData(cx, cy, sx = null, sy = null, dir = null) {
     const wordsToPlace = 3 + Math.floor(Math.random() * 3);
 
     let placedCount = 0;
-    console.log(`Placing ${wordsToPlace} words`);
+    //console.log(`Placing ${wordsToPlace} words`);
     for (let i = 0; i < wordsToPlace || placedCount == 0; i++) {
         if (placementWords.length > 0) {
             const word = placementWords[Math.floor(Math.random() * placementWords.length)];
@@ -643,6 +643,8 @@ function checkWord() {
         let message;
         if (typeof WORD_DEFINITIONS !== 'undefined' && WORD_DEFINITIONS[word.toLowerCase()]) {
             message = `${word}: ${WORD_DEFINITIONS[word.toLowerCase()]}`;
+        } else if (typeof WORD_DEFINITIONS !== 'undefined' && word[word.length - 1] === 'S' && WORD_DEFINITIONS[word.slice(0, -1).toLowerCase()]) {
+            message = `${word}: ${WORD_DEFINITIONS[word.slice(0, -1).toLowerCase()]}`;
         } else {
             message = `Found: ${word}!`;
         }
