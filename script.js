@@ -319,9 +319,13 @@ function expandWorld() {
         const target = available[Math.floor(Math.random() * available.length)];
         createChunk(target.x, target.y);
 
-        // 30% chance to place a cross-chunk word
+        // 30% chance to place a cross-chunk word, try up to 25 times
         if (Math.random() < 0.3) {
-            attemptCrossChunkPlacement(sx, sy, target.x, target.y, target.dir);
+            for (let attempt = 0; attempt < 25; attempt++) {
+                if (attemptCrossChunkPlacement(sx, sy, target.x, target.y, target.dir)) {
+                    break; // Success, stop trying
+                }
+            }
         }
 
         panToChunk(target.x, target.y);
@@ -332,7 +336,7 @@ function expandWorld() {
 
 function attemptCrossChunkPlacement(sx, sy, nx, ny, dir) {
     // Pick a random word
-    if (placementWords.length === 0) return;
+    if (placementWords.length === 0) return false;
     const word = placementWords[Math.floor(Math.random() * placementWords.length)];
 
     // Determine placement direction and start position
@@ -362,7 +366,7 @@ function attemptCrossChunkPlacement(sx, sy, nx, ny, dir) {
         startGx = sx * GRID_SIZE + Math.floor(Math.random() * GRID_SIZE);
         startGy = sy * GRID_SIZE + offset;
     } else {
-        return;
+        return false;
     }
 
     // Try to place the word, checking for conflicts and used letters
@@ -372,11 +376,11 @@ function attemptCrossChunkPlacement(sx, sy, nx, ny, dir) {
         const key = `${gx},${gy}`;
         const cell = chunks[key];
 
-        if (!cell) return; // Cell doesn't exist
-        if (cell.classList.contains('used')) return; // Cell already used
+        if (!cell) return false; // Cell doesn't exist
+        if (cell.classList.contains('used')) return false; // Cell already used
 
         const existing = cell.textContent;
-        if (existing && existing !== word[i]) return; // Conflict
+        if (existing && existing !== word[i]) return false; // Conflict
     }
 
     // Place the word
@@ -387,6 +391,9 @@ function attemptCrossChunkPlacement(sx, sy, nx, ny, dir) {
         const cell = chunks[key];
         cell.textContent = word[i];
     }
+
+    console.log(`Cross-chunk word placed: ${word}`);
+    return true;
 }
 
 function panToChunk(cx, cy) {
