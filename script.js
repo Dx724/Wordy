@@ -417,6 +417,8 @@ function checkWord() {
 
         // Save game state after finding a word
         saveGameState();
+    } else if (word.length > 0 && word.length < 4) {
+        showMessage('Words must be at least 4 letters long');
     }
 }
 
