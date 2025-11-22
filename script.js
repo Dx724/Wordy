@@ -51,9 +51,9 @@ function init() {
     window.addEventListener('mousemove', handleInputMove);
     window.addEventListener('mouseup', handleInputEnd);
 
-    // Touch support
-    gameContainer.addEventListener('touchstart', (e) => handleInputStart(e.touches[0]));
-    window.addEventListener('touchmove', (e) => handleInputMove(e.touches[0]));
+    // Touch support - pass full event to preserve touches array for multitouch detection
+    gameContainer.addEventListener('touchstart', handleInputStart);
+    window.addEventListener('touchmove', handleInputMove);
     window.addEventListener('touchend', handleInputEnd);
 }
 
@@ -405,6 +405,8 @@ function handleInputMove(e) {
         panX = clientX - startPanX;
         panY = clientY - startPanY;
         updateWorldTransform();
+        // Prevent scrolling on touch devices during panning
+        if (e.touches) e.preventDefault();
     } else if (isSelecting) {
         const target = document.elementFromPoint(clientX, clientY);
         // Update selection if over a valid cell, otherwise just update drag line to mouse
