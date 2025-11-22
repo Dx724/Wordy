@@ -450,9 +450,9 @@ function expandWorld() {
         const target = available[Math.floor(Math.random() * available.length)];
         createChunk(target.x, target.y);
 
-        // 30% chance to place a cross-chunk word, try up to 25 times
+        // 30% chance to place a cross-chunk word, try up to 250 times (we should probably do a prefix lookup instead)
         if (Math.random() < 0.3) {
-            for (let attempt = 0; attempt < 25; attempt++) {
+            for (let attempt = 0; attempt < 250; attempt++) {
                 if (attemptCrossChunkPlacement(sx, sy, target.x, target.y, target.dir)) {
                     break; // Success, stop trying
                 }
