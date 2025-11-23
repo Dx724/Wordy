@@ -591,7 +591,7 @@ function updateSelection(endCell, mouseX, mouseY) {
             const gx = startGx + i * stepX;
             const gy = startGy + i * stepY;
             const cell = chunks[`${gx},${gy}`];
-            if (cell && !cell.classList.contains('used')) {
+            if (cell && !cell.classList.contains('used')) { // "Feature": by finding a word, you can skip words across it
                 cell.classList.add('selected');
                 currentSelection.push(cell);
             }
@@ -653,19 +653,21 @@ function checkWord() {
         if (message.length > 250) {
             message = message.substring(0, 250) + '...';
         }
-
-        showMessage(message);
+        showMessage(message, '#4caf50');
         expandWorld();
 
         // Save game state after finding a word
         saveGameState();
     } else if (word.length > 0 && word.length < 4) {
-        showMessage('Words must be at least 4 letters long');
+        showMessage('Words must be at least 4 letters long', '#e94560');
+    } else if (word.length >= 4) {
+        showMessage(`${word} invalid`, '#e94560');
     }
 }
 
-function showMessage(msg) {
+function showMessage(msg, color = 'pink') {
     messageArea.textContent = msg;
+    messageArea.style.color = color;
     messageArea.classList.add('visible');
     setTimeout(() => messageArea.classList.remove('visible'), 2000);
 }
