@@ -13,7 +13,12 @@ const dragLine = document.getElementById('drag-line');
 
 let placementWords = [];
 let obscureWords = []; // Words from the bigger dictionary with length >= 6
-let prefixMap = {}; // Key: 2-letter prefix, Value: array of words with that prefix
+let prefixMap1 = {}; // Key: 1-letter prefix, Value: array of words with that prefix
+let prefixMap2 = {}; // Key: 2-letter prefix, Value: array of words with that prefix
+let prefixMap3 = {}; // Key: 3-letter prefix, Value: array of words with that prefix
+let suffixMap1 = {}; // Key: 1-letter suffix, Value: array of words with that suffix
+let suffixMap2 = {}; // Key: 2-letter suffix, Value: array of words with that suffix
+let suffixMap3 = {}; // Key: 3-letter suffix, Value: array of words with that suffix
 let chunks = {}; // Key: "gx,gy", Value: Cell Element
 let chunkElements = {}; // Key: "cx,cy", Value: Chunk Element
 let occupiedChunks = new Set(); // Key: "cx,cy"
@@ -96,14 +101,36 @@ function processDictionaries() {
         ["APPLE", "BRAIN", "CHAIR", "DANCE", "EAGLE"].forEach(w => placementWords.push(w));
     }
 
-    // Build prefix map for efficient cross-chunk word placement
+    // Build prefix and suffix maps for efficient cross-chunk word placement
     placementWords.forEach(word => {
         if (word.length >= 4) {
-            const prefix = word.substring(0, 2);
-            if (!prefixMap[prefix]) {
-                prefixMap[prefix] = [];
-            }
-            prefixMap[prefix].push(word);
+            // Build prefix maps
+            const prefix1 = word.substring(0, 1);
+            const prefix2 = word.substring(0, 2);
+            const prefix3 = word.substring(0, 3);
+
+            if (!prefixMap1[prefix1]) prefixMap1[prefix1] = [];
+            prefixMap1[prefix1].push(word);
+
+            if (!prefixMap2[prefix2]) prefixMap2[prefix2] = [];
+            prefixMap2[prefix2].push(word);
+
+            if (!prefixMap3[prefix3]) prefixMap3[prefix3] = [];
+            prefixMap3[prefix3].push(word);
+
+            // Build suffix maps
+            const suffix1 = word.substring(word.length - 1);
+            const suffix2 = word.substring(word.length - 2);
+            const suffix3 = word.substring(word.length - 3);
+
+            if (!suffixMap1[suffix1]) suffixMap1[suffix1] = [];
+            suffixMap1[suffix1].push(word);
+
+            if (!suffixMap2[suffix2]) suffixMap2[suffix2] = [];
+            suffixMap2[suffix2].push(word);
+
+            if (!suffixMap3[suffix3]) suffixMap3[suffix3] = [];
+            suffixMap3[suffix3].push(word);
         }
     });
 
@@ -358,8 +385,8 @@ function generateGridData(cx, cy, sx = null, sy = null, dir = null) {
         }
     }
 
-    // Seed the grid with 2-letter prefixes near edges for better cross-chunk placement
-    seedPrefixesNearEdges(grid);
+    // Seed the grid with prefixes and suffixes near edges for better cross-chunk placement
+    seedPrefixesAndSuffixesNearEdges(grid);
 
     for (let i = 0; i < grid.length; i++) {
         if (!grid[i]) {
@@ -408,40 +435,71 @@ function canPlace(grid, word, startX, startY, dir) {
     return true;
 }
 
-function seedPrefixesNearEdges(grid) {
-    // Get all available prefixes
-    const allPrefixes = Object.keys(prefixMap);
-    if (allPrefixes.length === 0) return;
+function seedPrefixesAndSuffixesNearEdges(grid) {
+    // Get all available prefixes and suffixes
+    const allPrefixes3 = Object.keys(prefixMap3);
+    const allPrefixes2 = Object.keys(prefixMap2);
+    const allSuffixes3 = Object.keys(suffixMap3);
+    const allSuffixes2 = Object.keys(suffixMap2);
 
-    // Try to place 2 random prefixes near edges
+    if (allPrefixes3.length === 0 && allSuffixes3.length === 0) return;
+
+    // Try to place 2 random prefix/suffix patterns near edges
     const numSeeds = 2;
 
     for (let seedAttempt = 0; seedAttempt < numSeeds; seedAttempt++) {
-        // Pick a random prefix
-        const prefix = allPrefixes[Math.floor(Math.random() * allPrefixes.length)];
+        // Randomly choose between prefix and suffix
+        const usePrefix = Math.random() < 0.5;
+
+        // Randomly choose between 2-letter and 3-letter
+        const use3Letter = Math.random() < 0.5;
+
+        let pattern, length;
+
+        if (usePrefix) {
+            if (use3Letter && allPrefixes3.length > 0) {
+                pattern = allPrefixes3[Math.floor(Math.random() * allPrefixes3.length)];
+                length = 3;
+            } else if (allPrefixes2.length > 0) {
+                pattern = allPrefixes2[Math.floor(Math.random() * allPrefixes2.length)];
+                length = 2;
+            } else {
+                continue;
+            }
+        } else {
+            if (use3Letter && allSuffixes3.length > 0) {
+                pattern = allSuffixes3[Math.floor(Math.random() * allSuffixes3.length)];
+                length = 3;
+            } else if (allSuffixes2.length > 0) {
+                pattern = allSuffixes2[Math.floor(Math.random() * allSuffixes2.length)];
+                length = 2;
+            } else {
+                continue;
+            }
+            pattern = pattern.split('').reverse().join('');
+        }
 
         // Define edge positions with outward-pointing directions
-        // Both letters are inside the chunk, but oriented so the word can extend out
         const edgePositions = [];
 
-        // Top edge (y=0 or y=1): place prefixes pointing UP (so 3rd letter would be outside)
+        // Top edge: place patterns pointing UP (so next letters would be outside)
         for (let x = 1; x < GRID_SIZE - 1; x++) {
-            edgePositions.push({ x, y: 1, directions: [{ dx: 0, dy: -1 }, { dx: 1, dy: -1 }, { dx: -1, dy: -1 }] });
+            edgePositions.push({ x, y: length - 1, directions: [{ dx: 0, dy: -1 }, { dx: 1, dy: -1 }, { dx: -1, dy: -1 }] });
         }
 
-        // Bottom edge (y=GRID_SIZE-1 or y=GRID_SIZE-2): place prefixes pointing DOWN
+        // Bottom edge: place patterns pointing DOWN
         for (let x = 1; x < GRID_SIZE - 1; x++) {
-            edgePositions.push({ x, y: GRID_SIZE - 2, directions: [{ dx: 0, dy: 1 }, { dx: 1, dy: 1 }, { dx: -1, dy: 1 }] });
+            edgePositions.push({ x, y: GRID_SIZE - length, directions: [{ dx: 0, dy: 1 }, { dx: 1, dy: 1 }, { dx: -1, dy: 1 }] });
         }
 
-        // Left edge (x=0 or x=1): place prefixes pointing LEFT
+        // Left edge: place patterns pointing LEFT
         for (let y = 1; y < GRID_SIZE - 1; y++) {
-            edgePositions.push({ x: 1, y, directions: [{ dx: -1, dy: 0 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 }] });
+            edgePositions.push({ x: length - 1, y, directions: [{ dx: -1, dy: 0 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 }] });
         }
 
-        // Right edge (x=GRID_SIZE-1 or x=GRID_SIZE-2): place prefixes pointing RIGHT
+        // Right edge: place patterns pointing RIGHT
         for (let y = 1; y < GRID_SIZE - 1; y++) {
-            edgePositions.push({ x: GRID_SIZE - 2, y, directions: [{ dx: 1, dy: 0 }, { dx: 1, dy: 1 }, { dx: 1, dy: -1 }] });
+            edgePositions.push({ x: GRID_SIZE - length, y, directions: [{ dx: 1, dy: 0 }, { dx: 1, dy: 1 }, { dx: 1, dy: -1 }] });
         }
 
         // Shuffle edge positions
@@ -449,30 +507,35 @@ function seedPrefixesNearEdges(grid) {
 
         var done = false;
 
-        // Try to place the prefix
+        // Try to place the pattern
         for (const pos of edgePositions) {
             // Shuffle directions for this position
             const shuffledDirs = [...pos.directions].sort(() => Math.random() - 0.5);
 
             for (const dir of shuffledDirs) {
-                const x1 = pos.x;
-                const y1 = pos.y;
-                const x2 = pos.x + dir.dx;
-                const y2 = pos.y + dir.dy;
+                // Calculate all positions for the pattern
+                const positions = [];
+                for (let i = 0; i < length; i++) {
+                    const x = pos.x + i * dir.dx;
+                    const y = pos.y + i * dir.dy;
 
-                // Both positions must be within the grid
-                if (x2 < 0 || x2 >= GRID_SIZE || y2 < 0 || y2 >= GRID_SIZE) continue;
+                    // All positions must be within the grid
+                    if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) {
+                        positions.length = 0; // Invalid
+                        break;
+                    }
+                    positions.push({ x, y, idx: y * GRID_SIZE + x });
+                }
 
-                const idx1 = y1 * GRID_SIZE + x1;
-                const idx2 = y2 * GRID_SIZE + x2;
+                if (positions.length !== length) continue;
 
-                // Check if both cells are empty
-                if (grid[idx1] === null && grid[idx2] === null) {
-                    // Place the prefix
-                    grid[idx1] = prefix[0];
-                    grid[idx2] = prefix[1];
+                // Check if all cells are empty
+                if (positions.every(p => grid[p.idx] === null)) {
+                    // Place the pattern
+                    for (let i = 0; i < length; i++) {
+                        grid[positions[i].idx] = pattern[i];
+                    }
                     done = true;
-                    //console.log("Placed prefix: " + prefix + " at " + x1 + "," + y1 + " and " + x2 + "," + y2);
                     break;
                 }
             }
@@ -780,6 +843,9 @@ function expandWorld() {
 }
 
 function placeCrossChunkWordInGrid(grid, cx, cy, sx, sy, dir) {
+    // Randomly choose between "forwards" (prefix in old chunk) and "backwards" (suffix in old chunk)
+    const useForwards = Math.random() < 0.5;
+
     // Determine the edge cells in the old chunk adjacent to the new chunk
     const edgePositions = [];
 
@@ -820,47 +886,113 @@ function placeCrossChunkWordInGrid(grid, cx, cy, sx, sy, dir) {
     // Shuffle edge positions for variety
     edgePositions.sort(() => Math.random() - 0.5);
 
-    // Try each edge position
-    for (const edgePos of edgePositions) {
-        // Try the primary direction and diagonals that cross into the new chunk
-        const tryDirections = [edgePos.primaryDir];
+    // Try length 3, then length 2, then 30% chance for length 1
+    const lengthsToTry = [3, 2];
+    if (Math.random() < 0.3) {
+        lengthsToTry.push(1);
+    }
+    // Shuffle lengths for variety
+    lengthsToTry.sort(() => Math.random() - 0.5);
 
-        // Add diagonal directions if they make sense
-        if (Math.abs(edgePos.primaryDir.dx) === 1) {
-            tryDirections.push({ dx: edgePos.primaryDir.dx, dy: 1 });
-            tryDirections.push({ dx: edgePos.primaryDir.dx, dy: -1 });
-        } else if (Math.abs(edgePos.primaryDir.dy) === 1) {
-            tryDirections.push({ dx: 1, dy: edgePos.primaryDir.dy });
-            tryDirections.push({ dx: -1, dy: edgePos.primaryDir.dy });
-        }
+    for (const patternLength of lengthsToTry) {
+        // Try each edge position
+        for (const edgePos of edgePositions) {
+            // Try the primary direction and diagonals that cross into the new chunk
+            const tryDirections = [edgePos.primaryDir];
 
-        for (const direction of tryDirections) {
-            // Try placing words starting 1 cell before the edge (so 2 letters in old chunk)
-            const startGx = edgePos.gx - direction.dx;
-            const startGy = edgePos.gy - direction.dy;
+            // Add diagonal directions if they make sense
+            if (Math.abs(edgePos.primaryDir.dx) === 1) {
+                tryDirections.push({ dx: edgePos.primaryDir.dx, dy: 1 });
+                tryDirections.push({ dx: edgePos.primaryDir.dx, dy: -1 });
+            } else if (Math.abs(edgePos.primaryDir.dy) === 1) {
+                tryDirections.push({ dx: 1, dy: edgePos.primaryDir.dy });
+                tryDirections.push({ dx: -1, dy: edgePos.primaryDir.dy });
+            }
 
-            // Read the 2-letter prefix from the old chunk
-            const cell1 = chunks[`${startGx},${startGy}`];
-            const cell2 = chunks[`${edgePos.gx},${edgePos.gy}`];
+            // Shuffle directions for variety
+            const shuffledDirections = [...tryDirections].sort(() => Math.random() - 0.5);
 
-            if (!cell1 || !cell2) continue;
-            if (cell1.classList.contains('used') || cell2.classList.contains('used')) continue;
+            for (const direction of shuffledDirections) {
+                const result = tryPlaceWithPattern(grid, cx, cy, sx, sy, edgePos, direction, patternLength, useForwards);
 
-            const prefix = cell1.textContent + cell2.textContent;
-            const candidateWords = prefixMap[prefix];
-
-            if (!candidateWords || candidateWords.length === 0) continue;
-
-            // Shuffle candidates for variety
-            const shuffledWords = [...candidateWords].sort(() => Math.random() - 0.5);
-
-            // Try each candidate word
-            for (const word of shuffledWords) {
-                if (tryPlaceCrossChunkWordInGrid(grid, cx, cy, sx, sy, word, startGx, startGy, direction.dx, direction.dy)) {
-                    //console.log(`Cross-chunk word placed: ${word} at (${startGx},${startGy}) dir(${direction.dx},${direction.dy})`);
+                if (result) {
                     return true;
                 }
             }
+        }
+    }
+
+    return false;
+}
+
+function tryPlaceWithPattern(grid, cx, cy, sx, sy, edgePos, direction, patternLength, usePrefix) {
+    // Read the pattern from the old chunk
+    const patternCells = [];
+
+    const startGx = edgePos.gx - (patternLength - 1) * direction.dx;
+    const startGy = edgePos.gy - (patternLength - 1) * direction.dy;
+
+    for (let i = 0; i < patternLength; i++) {
+        const gx = startGx + i * direction.dx;
+        const gy = startGy + i * direction.dy;
+        const cell = chunks[`${gx},${gy}`];
+
+        if (!cell) return false;
+        if (cell.classList.contains('used')) return false;
+
+        patternCells.push(cell);
+    }
+    if (!usePrefix) {
+        patternCells.reverse();
+    }
+
+    const pattern = patternCells.map(c => c.textContent).join('');
+    //console.log("Pattern: " + pattern + " | Use Prefix: " + usePrefix);
+
+    // Get candidate words based on pattern length and type
+    let candidateWords;
+    if (usePrefix) {
+        if (patternLength === 3) {
+            candidateWords = prefixMap3[pattern];
+        } else if (patternLength === 2) {
+            candidateWords = prefixMap2[pattern];
+        } else {
+            candidateWords = prefixMap1[pattern];
+        }
+    } else {
+        if (patternLength === 3) {
+            candidateWords = suffixMap3[pattern];
+        } else if (patternLength === 2) {
+            candidateWords = suffixMap2[pattern];
+        } else {
+            candidateWords = suffixMap1[pattern];
+        }
+    }
+
+    if (!candidateWords || candidateWords.length === 0) return false;
+
+    // Shuffle candidates for variety
+    const shuffledWords = [...candidateWords].sort(() => Math.random() - 0.5);
+
+    // Try each candidate word
+    for (let word of shuffledWords) {
+        // For suffix placement, reverse the word so it places correctly
+        if (!usePrefix) {
+            word = word.split('').reverse().join('');
+        }
+
+        // Calculate start position
+        let startGx, startGy;
+        startGx = edgePos.gx - (patternLength - 1) * direction.dx;
+        startGy = edgePos.gy - (patternLength - 1) * direction.dy;
+
+        //console.log("Trying to place:  " + word);
+        if (tryPlaceCrossChunkWordInGrid(grid, cx, cy, sx, sy, word, startGx, startGy, direction.dx, direction.dy)) {
+            // Log successful cross-chunk placement
+            const mode = usePrefix ? 'prefix' : 'suffix';
+            const originalWord = usePrefix ? word : word.split('').reverse().join('');
+            //console.log(`Cross-chunk word placed: ${originalWord} (${mode}, length ${patternLength}, dir: [${direction.dx},${direction.dy}])`);
+            return true;
         }
     }
 
