@@ -976,7 +976,7 @@ function enterSpeedMode() {
     // Reset camera
     panX = -CHUNK_WIDTH_PX / 2;
     panY = -CHUNK_HEIGHT_PX / 2;
-    scale = 1.0;
+    //scale = 1.0;
     updateWorldTransform();
 
     // Enter speed mode
