@@ -30,11 +30,20 @@
     <div id="ui-layer">
         <h1>Wordy</h1>
         <div id="score-board">
-            <div>Words Found: <span id="word-count">0</span></div>
-            <div>Average Word Length: <span id="avg-len">0</span></div>
+            <div id="normal-stats">
+                <div>Words Found: <span id="word-count">0</span></div>
+                <div>Average Word Length: <span id="avg-len">0</span></div>
+            </div>
+            <div id="speed-stats" class="hidden">
+                <div>Score: <span id="speed-score">0</span></div>
+            </div>
         </div>
         <div id="message-area">Find a 4+ letter word!</div>
     </div>
+
+    <button id="speed-mode-btn">Speed: <span id="total-speed-score">0</span></button>
+
+    <div id="timer-border"></div>
 
     <svg id="selection-svg">
         <path id="drag-line" class="selection-line" d="" />

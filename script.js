@@ -33,6 +33,15 @@ let currentSelection = [];
 let foundWordsCount = 0;
 let foundLettersCount = 0;
 
+// Speed Mode state
+let isSpeedMode = false;
+let speedModeScore = 0;
+let totalSpeedScore = 0;
+let speedModeTimer = null;
+let speedModeTimeRemaining = 60;
+let speedModeStartTime = 0;
+let savedGameState = null; // Store normal mode state
+
 // Initialize
 init();
 
@@ -62,6 +71,15 @@ function init() {
     gameContainer.addEventListener('touchstart', handleInputStart);
     window.addEventListener('touchmove', handleInputMove);
     window.addEventListener('touchend', handleInputEnd);
+
+    // Speed Mode button
+    const speedModeBtn = document.getElementById('speed-mode-btn');
+    if (speedModeBtn) {
+        speedModeBtn.addEventListener('click', toggleSpeedMode);
+    }
+
+    // Update UI elements
+    updateScoreDisplay();
 }
 
 function processDictionaries() {
@@ -103,54 +121,136 @@ function processDictionaries() {
     }
 }
 
+// Serialize current game state to an object
+function serializeGameState() {
+    const state = {
+        version: 1,
+        savedAt: Date.now(),
+        score: {
+            foundWordsCount,
+            foundLettersCount
+        },
+        totalSpeedScore,
+        mostRecentChunk,
+        panX,
+        panY,
+        scale,
+        chunks: []
+    };
+
+    // Serialize all chunks
+    occupiedChunks.forEach(chunkKey => {
+        const [cx, cy] = chunkKey.split(',').map(Number);
+        const chunkData = {
+            cx,
+            cy,
+            cells: []
+        };
+
+        // Serialize all cells in this chunk
+        for (let ly = 0; ly < GRID_SIZE; ly++) {
+            for (let lx = 0; lx < GRID_SIZE; lx++) {
+                const gx = cx * GRID_SIZE + lx;
+                const gy = cy * GRID_SIZE + ly;
+                const cell = chunks[`${gx},${gy}`];
+
+                if (cell) {
+                    chunkData.cells.push({
+                        letter: cell.textContent,
+                        found: cell.classList.contains('found'),
+                        used: cell.classList.contains('used')
+                    });
+                }
+            }
+        }
+
+        state.chunks.push(chunkData);
+    });
+
+    return state;
+}
+
 // Save game state to localStorage
 function saveGameState() {
     try {
-        const state = {
-            version: 1,
-            savedAt: Date.now(),
-            score: {
-                foundWordsCount,
-                foundLettersCount
-            },
-            mostRecentChunk,
-            chunks: []
-        };
-
-        // Serialize all chunks
-        occupiedChunks.forEach(chunkKey => {
-            const [cx, cy] = chunkKey.split(',').map(Number);
-            const chunkData = {
-                cx,
-                cy,
-                cells: []
-            };
-
-            // Serialize all cells in this chunk
-            for (let ly = 0; ly < GRID_SIZE; ly++) {
-                for (let lx = 0; lx < GRID_SIZE; lx++) {
-                    const gx = cx * GRID_SIZE + lx;
-                    const gy = cy * GRID_SIZE + ly;
-                    const cell = chunks[`${gx},${gy}`];
-
-                    if (cell) {
-                        chunkData.cells.push({
-                            letter: cell.textContent,
-                            found: cell.classList.contains('found'),
-                            used: cell.classList.contains('used')
-                        });
-                    }
-                }
-            }
-
-            state.chunks.push(chunkData);
-        });
-
+        const state = serializeGameState();
         localStorage.setItem('wordSearchGameState', JSON.stringify(state));
         console.log('Game state saved');
     } catch (error) {
         console.error('Failed to save game state:', error);
     }
+}
+
+// Restore game state from a serialized object
+function restoreGameState(state, updateScore = true) {
+    // Clear current state
+    world.innerHTML = '';
+    chunks = {};
+    chunkElements = {};
+    occupiedChunks.clear();
+
+    // Restore score
+    foundWordsCount = state.score.foundWordsCount || 0;
+    foundLettersCount = state.score.foundLettersCount || 0;
+
+    // Restore most recent chunk
+    mostRecentChunk = state.mostRecentChunk || { cx: 0, cy: 0 };
+
+    // Restore camera position
+    if (state.panX !== undefined) panX = state.panX;
+    if (state.panY !== undefined) panY = state.panY;
+    if (state.scale !== undefined) scale = state.scale;
+
+    // Restore all chunks
+    state.chunks.forEach(chunkData => {
+        const { cx, cy, cells } = chunkData;
+
+        // Create chunk element
+        const chunkEl = document.createElement('div');
+        chunkEl.className = 'grid-chunk';
+        chunkEl.style.left = `${cx * CHUNK_WIDTH_PX}px`;
+        chunkEl.style.top = `${cy * CHUNK_HEIGHT_PX}px`;
+        chunkEl.dataset.cx = cx;
+        chunkEl.dataset.cy = cy;
+
+        // Create cells with saved data
+        cells.forEach((cellData, index) => {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.textContent = cellData.letter;
+
+            const localX = index % GRID_SIZE;
+            const localY = Math.floor(index / GRID_SIZE);
+            const gx = cx * GRID_SIZE + localX;
+            const gy = cy * GRID_SIZE + localY;
+
+            cell.dataset.gx = gx;
+            cell.dataset.gy = gy;
+
+            // Restore cell state
+            if (cellData.found) cell.classList.add('found');
+            if (cellData.used) cell.classList.add('used');
+
+            chunkEl.appendChild(cell);
+            chunks[`${gx},${gy}`] = cell;
+        });
+
+        world.appendChild(chunkEl);
+        chunkElements[`${cx},${cy}`] = chunkEl;
+        occupiedChunks.add(`${cx},${cy}`);
+    });
+
+    if (updateScore) {
+        // Restore total speed score
+        totalSpeedScore = state.totalSpeedScore || 0;
+        const totalScoreEl = document.getElementById('total-speed-score');
+        if (totalScoreEl) {
+            totalScoreEl.textContent = totalSpeedScore;
+        }
+    }
+
+    updateWorldTransform();
+    updateScoreDisplay();
 }
 
 // Load game state from localStorage
@@ -161,53 +261,8 @@ function loadGameState() {
 
         const state = JSON.parse(saved);
 
-        // Restore score
-        foundWordsCount = state.score.foundWordsCount || 0;
-        foundLettersCount = state.score.foundLettersCount || 0;
-        wordCountEl.textContent = foundWordsCount;
-        avgLenEl.textContent = foundWordsCount > 0 ? (foundLettersCount / foundWordsCount).toFixed(1) : 0;
-
-        // Restore most recent chunk
-        mostRecentChunk = state.mostRecentChunk || { cx: 0, cy: 0 };
-
-        // Restore all chunks
-        state.chunks.forEach(chunkData => {
-            const { cx, cy, cells } = chunkData;
-
-            // Create chunk element
-            const chunkEl = document.createElement('div');
-            chunkEl.className = 'grid-chunk';
-            chunkEl.style.left = `${cx * CHUNK_WIDTH_PX}px`;
-            chunkEl.style.top = `${cy * CHUNK_HEIGHT_PX}px`;
-            chunkEl.dataset.cx = cx;
-            chunkEl.dataset.cy = cy;
-
-            // Create cells with saved data
-            cells.forEach((cellData, index) => {
-                const cell = document.createElement('div');
-                cell.className = 'cell';
-                cell.textContent = cellData.letter;
-
-                const localX = index % GRID_SIZE;
-                const localY = Math.floor(index / GRID_SIZE);
-                const gx = cx * GRID_SIZE + localX;
-                const gy = cy * GRID_SIZE + localY;
-
-                cell.dataset.gx = gx;
-                cell.dataset.gy = gy;
-
-                // Restore cell state
-                if (cellData.found) cell.classList.add('found');
-                if (cellData.used) cell.classList.add('used');
-
-                chunkEl.appendChild(cell);
-                chunks[`${gx},${gy}`] = cell;
-            });
-
-            world.appendChild(chunkEl);
-            chunkElements[`${cx},${cy}`] = chunkEl;
-            occupiedChunks.add(`${cx},${cy}`);
-        });
+        // Restore game state
+        restoreGameState(state);
 
         // Center camera on most recent chunk
         panToChunk(mostRecentChunk.cx, mostRecentChunk.cy);
@@ -628,36 +683,49 @@ function clearSelection() {
 function checkWord() {
     const word = currentSelection.map(c => c.textContent).join('');
     if (word.length >= 4 && VALIDATION_DICT.has(word)) {
-        foundWordsCount++;
-        foundLettersCount += word.length;
-        wordCountEl.textContent = foundWordsCount;
-        avgLenEl.textContent = (foundLettersCount / foundWordsCount).toFixed(1);
-
         currentSelection.forEach(c => {
             c.classList.remove('selected');
             c.classList.add('found');
             c.classList.add('used'); // Mark as used
         });
 
-        // Check if we have a definition for this word
-        let message;
-        if (typeof WORD_DEFINITIONS !== 'undefined' && WORD_DEFINITIONS[word.toLowerCase()]) {
-            message = `${word}: ${WORD_DEFINITIONS[word.toLowerCase()]}`;
-        } else if (typeof WORD_DEFINITIONS !== 'undefined' && word[word.length - 1] === 'S' && WORD_DEFINITIONS[word.slice(0, -1).toLowerCase()]) {
-            message = `${word}: ${WORD_DEFINITIONS[word.slice(0, -1).toLowerCase()]}`;
+        if (isSpeedMode) {
+            // Speed mode scoring
+            const points = calculateSpeedModePoints(word.length);
+            speedModeScore += points;
+            const speedScoreEl = document.getElementById('speed-score');
+            if (speedScoreEl) {
+                speedScoreEl.textContent = speedModeScore;
+            }
+            showMessage(`${word} (+${points})`, '#4caf50');
+            expandWorld();
         } else {
-            message = `Found: ${word}!`;
-        }
+            // Normal mode
+            foundWordsCount++;
+            foundLettersCount += word.length;
+            wordCountEl.textContent = foundWordsCount;
+            avgLenEl.textContent = (foundLettersCount / foundWordsCount).toFixed(1);
 
-        // Truncate to 250 characters if needed
-        if (message.length > 250) {
-            message = message.substring(0, 250) + '...';
-        }
-        showMessage(message, '#4caf50');
-        expandWorld();
+            // Check if we have a definition for this word
+            let message;
+            if (typeof WORD_DEFINITIONS !== 'undefined' && WORD_DEFINITIONS[word.toLowerCase()]) {
+                message = `${word}: ${WORD_DEFINITIONS[word.toLowerCase()]}`;
+            } else if (typeof WORD_DEFINITIONS !== 'undefined' && word[word.length - 1] === 'S' && WORD_DEFINITIONS[word.slice(0, -1).toLowerCase()]) {
+                message = `${word}: ${WORD_DEFINITIONS[word.slice(0, -1).toLowerCase()]}`;
+            } else {
+                message = `Found: ${word}!`;
+            }
 
-        // Save game state after finding a word
-        saveGameState();
+            // Truncate to 250 characters if needed
+            if (message.length > 250) {
+                message = message.substring(0, 250) + '...';
+            }
+            showMessage(message, '#4caf50');
+            expandWorld();
+
+            // Save game state after finding a word
+            saveGameState();
+        }
     } else if (word.length > 0 && word.length < 4) {
         showMessage('Words must be at least 4 letters long', '#e94560');
     } else if (word.length >= 4) {
@@ -694,7 +762,10 @@ function expandWorld() {
         const target = available[Math.floor(Math.random() * available.length)];
         createChunk(target.x, target.y, sx, sy, target.dir);
 
-        panToChunk(target.x, target.y);
+        // Don't auto-pan in speed mode
+        if (!isSpeedMode) {
+            panToChunk(target.x, target.y);
+        }
     } else {
         expandWorld();
     }
@@ -859,4 +930,124 @@ function panToChunk(cx, cy) {
         }
     }
     requestAnimationFrame(animate);
+}
+
+// Speed Mode Functions
+function calculateSpeedModePoints(wordLength) {
+    if (wordLength === 4) return 1;
+    if (wordLength === 5) return 2;
+    if (wordLength === 6) return 4;
+    if (wordLength === 7) return 7;
+    if (wordLength === 8) return 11;
+    if (wordLength === 9) return 16;
+    if (wordLength === 10) return 25;
+    return 25 + wordLength; // 11+ letters
+}
+
+function toggleSpeedMode() {
+    if (isSpeedMode) {
+        exitSpeedMode();
+    } else {
+        enterSpeedMode();
+    }
+}
+
+function enterSpeedMode() {
+    // Save current game state using existing serialization
+    savedGameState = serializeGameState();
+
+    // Clear the world
+    world.innerHTML = '';
+    chunks = {};
+    chunkElements = {};
+    occupiedChunks.clear();
+
+    // Create single grid at 0,0
+    createChunk(0, 0);
+
+    // Reset camera
+    panX = -CHUNK_WIDTH_PX / 2;
+    panY = -CHUNK_HEIGHT_PX / 2;
+    scale = 1.0;
+    updateWorldTransform();
+
+    // Enter speed mode
+    isSpeedMode = true;
+    speedModeScore = 0;
+    speedModeTimeRemaining = 60;
+    speedModeStartTime = Date.now();
+
+    // Update UI
+    document.body.classList.add('speed-mode-active');
+    document.getElementById('normal-stats').classList.add('hidden');
+    document.getElementById('speed-stats').classList.remove('hidden');
+    document.getElementById('timer-border').classList.add('active');
+    document.getElementById('speed-mode-btn').classList.add('hidden');
+
+    // Start timer
+    updateSpeedModeTimer();
+}
+
+function exitSpeedMode() {
+    // Stop timer
+    if (speedModeTimer) {
+        cancelAnimationFrame(speedModeTimer);
+        speedModeTimer = null;
+    }
+
+    // Update total score
+    totalSpeedScore += speedModeScore;
+    const totalScoreEl = document.getElementById('total-speed-score');
+    if (totalScoreEl) {
+        totalScoreEl.textContent = totalSpeedScore;
+    }
+
+    // Show final score
+    showMessage(`Speed Mode Complete! Score: ${speedModeScore}`, '#4caf50');
+
+    // Restore game state using existing deserialization
+    if (savedGameState) {
+        restoreGameState(savedGameState, false);
+        savedGameState = null;
+    }
+
+    // Exit speed mode
+    isSpeedMode = false;
+    document.body.classList.remove('speed-mode-active');
+    document.getElementById('normal-stats').classList.remove('hidden');
+    document.getElementById('speed-stats').classList.add('hidden');
+    document.getElementById('timer-border').classList.remove('active');
+    const speedBtn = document.getElementById('speed-mode-btn');
+    speedBtn.classList.remove('hidden');
+
+    // Save the updated total score
+    saveGameState();
+}
+
+function updateSpeedModeTimer() {
+    if (!isSpeedMode) return;
+
+    const elapsed = (Date.now() - speedModeStartTime) / 1000;
+    speedModeTimeRemaining = Math.max(0, 60 - elapsed);
+
+    // Update timer border (shrink from top)
+    const timerBorder = document.getElementById('timer-border');
+    if (timerBorder) {
+        const percentage = (speedModeTimeRemaining / 60) * 100;
+        timerBorder.style.clipPath = `inset(${100 - percentage}% 0 0 0)`;
+    }
+
+    // Check if time is up
+    if (speedModeTimeRemaining <= 0) {
+        exitSpeedMode();
+        return;
+    }
+
+    // Continue timer
+    speedModeTimer = requestAnimationFrame(updateSpeedModeTimer);
+}
+
+function updateScoreDisplay() {
+    wordCountEl.textContent = foundWordsCount;
+    avgLenEl.textContent = foundWordsCount > 0 ? (foundLettersCount / foundWordsCount).toFixed(1) : 0;
 }

@@ -177,3 +177,115 @@ h1 {
     opacity: 0.6;
     transition: d 0.05s linear;
 }
+
+/* Speed Mode Styles */
+.hidden {
+    display: none !important;
+}
+
+#speed-mode-btn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #e94560, #c93550);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-family: var(--font-family);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-align: center;
+    line-height: 1.4;
+    box-shadow: 0 4px 12px rgba(233, 69, 96, 0.3);
+    text-shadow:
+        -1px -1px 0 rgba(0, 0, 0, 0.3),
+        1px -1px 0 rgba(0, 0, 0, 0.3),
+        -1px 1px 0 rgba(0, 0, 0, 0.3),
+        1px 1px 0 rgba(0, 0, 0, 0.3);
+    z-index: 1001;
+}
+
+#speed-mode-btn.hidden {
+    display: none;
+}
+
+#speed-mode-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(233, 69, 96, 0.5);
+}
+
+#speed-mode-btn:active {
+    transform: translateY(0);
+}
+
+#total-speed-score {
+    font-weight: 700;
+}
+
+#timer-border {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 1000;
+    display: none;
+}
+
+#timer-border.active {
+    display: block;
+    border: 8px solid #e94560;
+    box-shadow: inset 0 0 20px rgba(233, 69, 96, 0.5);
+}
+
+/* Speed Mode Active - Color Inversion */
+body.speed-mode-active {
+    background-color: #e5e5f5;
+}
+
+body.speed-mode-active #game-container {
+    background-color: #e5e5f5;
+}
+
+body.speed-mode-active .grid-chunk {
+    background-color: #e9dce1;
+}
+
+body.speed-mode-active .cell {
+    background-color: #f0c9d0;
+    border-color: #e5e5f5;
+    color: #1a1a2e;
+}
+
+body.speed-mode-active .cell:hover {
+    background-color: #16a5ba;
+}
+
+body.speed-mode-active .cell.selected {
+    background-color: #16a5ba;
+    color: white;
+}
+
+body.speed-mode-active .cell.found {
+    background-color: #b35a0f;
+    color: white;
+}
+
+body.speed-mode-active .cell.used {
+    background-color: #d3c1b0;
+    color: #82736c;
+}
+
+body.speed-mode-active h1,
+body.speed-mode-active #score-board,
+body.speed-mode-active #message-area {
+    color: #1a1a2e;
+}
+
+body.speed-mode-active .selection-line {
+    stroke: rgba(22, 165, 186, 0.5);
+}
