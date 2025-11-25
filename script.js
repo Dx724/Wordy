@@ -37,6 +37,7 @@ let foundLettersCount = 0;
 let isSpeedMode = false;
 let speedModeScore = 0;
 let totalSpeedScore = 0;
+let maxSpeedScore = 0;
 let speedModeTimer = null;
 let speedModeTimeRemaining = 60;
 let speedModeStartTime = 0;
@@ -131,6 +132,7 @@ function serializeGameState() {
             foundLettersCount
         },
         totalSpeedScore,
+        maxSpeedScore,
         mostRecentChunk,
         panX,
         panY,
@@ -241,11 +243,17 @@ function restoreGameState(state, updateScore = true) {
     });
 
     if (updateScore) {
-        // Restore total speed score
+        // Restore total speed score and max score
         totalSpeedScore = state.totalSpeedScore || 0;
+        maxSpeedScore = state.maxSpeedScore || 0;
+
         const totalScoreEl = document.getElementById('total-speed-score');
         if (totalScoreEl) {
             totalScoreEl.textContent = totalSpeedScore;
+        }
+        const maxScoreEl = document.getElementById('max-speed-score');
+        if (maxScoreEl) {
+            maxScoreEl.textContent = maxSpeedScore;
         }
     }
 
@@ -1000,6 +1008,15 @@ function exitSpeedMode() {
     const totalScoreEl = document.getElementById('total-speed-score');
     if (totalScoreEl) {
         totalScoreEl.textContent = totalSpeedScore;
+    }
+
+    // Update max score
+    if (speedModeScore > maxSpeedScore) {
+        maxSpeedScore = speedModeScore;
+        const maxScoreEl = document.getElementById('max-speed-score');
+        if (maxScoreEl) {
+            maxScoreEl.textContent = maxSpeedScore;
+        }
     }
 
     // Show final score
