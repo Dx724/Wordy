@@ -241,6 +241,9 @@ h1 {
     display: block;
     border: 8px solid #e94560;
     box-shadow: inset 0 0 20px rgba(233, 69, 96, 0.5);
+    --timer-progress: 0;
+    -webkit-mask-image: conic-gradient(from 0deg at 50% 50%, transparent 0deg, transparent calc(var(--timer-progress) * 180deg), black calc(var(--timer-progress) * 180deg), black calc(360deg - var(--timer-progress) * 180deg), transparent calc(360deg - var(--timer-progress) * 180deg), transparent 360deg);
+    mask-image: conic-gradient(from 0deg at 50% 50%, transparent 0deg, transparent calc(var(--timer-progress) * 180deg), black calc(var(--timer-progress) * 180deg), black calc(360deg - var(--timer-progress) * 180deg), transparent calc(360deg - var(--timer-progress) * 180deg), transparent 360deg);
 }
 
 /* Speed Mode Active - Color Inversion */

@@ -1047,11 +1047,12 @@ function updateSpeedModeTimer() {
     const elapsed = (Date.now() - speedModeStartTime) / 1000;
     speedModeTimeRemaining = Math.max(0, 60 - elapsed);
 
-    // Update timer border (shrink from top)
+    // Update timer border (radial sweep)
     const timerBorder = document.getElementById('timer-border');
     if (timerBorder) {
-        const percentage = (speedModeTimeRemaining / 60) * 100;
-        timerBorder.style.clipPath = `inset(${100 - percentage}% 0 0 0)`;
+        const elapsed = (Date.now() - speedModeStartTime) / 1000;
+        const progress = Math.min(1, elapsed / 60);
+        timerBorder.style.setProperty('--timer-progress', progress);
     }
 
     // Check if time is up
