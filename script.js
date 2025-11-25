@@ -1106,8 +1106,8 @@ function enterSpeedMode() {
     createChunk(0, 0);
 
     // Reset camera
-    panX = -CHUNK_WIDTH_PX / 2;
-    panY = -CHUNK_HEIGHT_PX / 2;
+    panX = (-CHUNK_WIDTH_PX / 2) * scale;
+    panY = (-CHUNK_HEIGHT_PX / 2) * scale;
     //scale = 1.0;
     updateWorldTransform();
 
