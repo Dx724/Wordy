@@ -189,9 +189,9 @@ h1 {
     top: 20px;
     right: 20px;
     padding: 12px 20px;
-    background: linear-gradient(135deg, #e94560, #c93550);
-    color: white;
-    border: none;
+    background: transparent;
+    color: #e94560;
+    border: 2px solid #e94560;
     border-radius: 8px;
     font-family: var(--font-family);
     font-size: 16px;
