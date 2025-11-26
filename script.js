@@ -47,6 +47,7 @@ let speedModeTimer = null;
 let speedModeTimeRemaining = 60;
 let speedModeStartTime = 0;
 let savedGameState = null; // Store normal mode state
+let lastBonusTime = null; // Track when bonus time was last added for color fade
 
 // Initialize
 init();
@@ -768,6 +769,11 @@ function checkWord() {
             if (speedScoreEl) {
                 speedScoreEl.textContent = speedModeScore;
             }
+
+            // Add 5 seconds bonus time
+            speedModeStartTime += 5000; // Add 5 seconds in milliseconds
+            lastBonusTime = Date.now(); // Track when bonus was added for color animation
+
             showMessage(`${word} (+${points})`, '#4caf50');
             expandWorld();
         } else {
@@ -1185,6 +1191,25 @@ function updateSpeedModeTimer() {
         const elapsed = (Date.now() - speedModeStartTime) / 1000;
         const progress = Math.min(1, elapsed / 60);
         timerBorder.style.setProperty('--timer-progress', progress);
+
+        // Calculate border color based on time since last bonus
+        let borderColor = '#e94560'; // Default red
+        if (lastBonusTime !== null) {
+            const timeSinceBonus = (Date.now() - lastBonusTime) / 1000;
+            if (timeSinceBonus < 5) {
+                // Interpolate from green to red over 5 seconds
+                const fadeProgress = timeSinceBonus / 5;
+                // RGB for green: (76, 175, 80), RGB for red: (233, 69, 96)
+                const r = Math.round(76 + (233 - 76) * fadeProgress);
+                const g = Math.round(175 + (69 - 175) * fadeProgress);
+                const b = Math.round(80 + (96 - 80) * fadeProgress);
+                borderColor = `rgb(${r}, ${g}, ${b})`;
+            } else {
+                // Reset lastBonusTime after fade completes
+                lastBonusTime = null;
+            }
+        }
+        timerBorder.style.borderColor = borderColor;
     }
 
     // Check if time is up
